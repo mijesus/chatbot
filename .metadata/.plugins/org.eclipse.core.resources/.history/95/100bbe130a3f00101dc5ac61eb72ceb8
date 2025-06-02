@@ -1,0 +1,307 @@
+package chatbotorioai;
+
+import javax.servlet.*;
+import javax.servlet.http.*;
+import java.io.*;
+import java.sql.*;
+import java.util.*;
+
+public class ChatServlet extends HttpServlet {
+    private static final long serialVersionUID = 1L;
+
+    private Map<String, String> sessionData = new HashMap<>();
+    private int etapa = -1; // -1: menu inicial
+    private String modo = "";
+
+    private static final List<String> DATAS = Arrays.asList("10/06/2025", "11/06/2025", "12/06/2025");
+    private static final List<String> HORARIOS = Arrays.asList("09:00", "10:00", "11:00");
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        String userMessage = request.getParameter("message").trim().toLowerCase();
+        response.setContentType("text/plain");
+        PrintWriter out = response.getWriter();
+
+        if (userMessage.equalsIgnoreCase("sair")) {
+            resetarConversa();
+            out.println("Agradecemos pelo contato. Sessão encerrada.");
+            return;
+        }
+
+        if (etapa == -1) {
+            returnMenuInicial(out);
+            etapa = -2;
+            return;
+        }
+
+        if (etapa == -2) {
+            switch (userMessage) {
+                case "1":
+                    modo = "agendar";
+                    etapa = 0;
+                    out.println("Ótimo! Vamos iniciar seu agendamento.\nPor favor, informe seu nome completo:");
+                    break;
+                case "2":
+                    modo = "consultar";
+                    out.println("Por favor, informe seu CPF para consultar seu agendamento:");
+                    etapa = 100;
+                    break;
+                case "3":
+                    modo = "desmarcar";
+                    out.println("Informe o CPF vinculado à consulta que deseja cancelar:");
+                    etapa = 200;
+                    break;
+                default:
+                    out.println("Opção inválida. Digite:\n1) Agendar consulta\n2) Consultar agendamento\n3) Cancelar consulta");
+            }
+            return;
+        }
+
+        String botResponse = processarMensagem(userMessage);
+        out.println(botResponse);
+    }
+
+    private String processarMensagem(String userMessage) {
+        switch (modo) {
+            case "agendar":
+                return fluxoAgendamento(userMessage);
+            case "consultar":
+                return fluxoConsulta(userMessage);
+            case "desmarcar":
+                return fluxoDesmarcar(userMessage);
+            default:
+                resetarConversa();
+                return "Erro no fluxo. Reiniciando atendimento...";
+        }
+    }
+
+    private String fluxoAgendamento(String userMessage) {
+        switch (etapa) {
+            case 0:
+                sessionData.put("nome", userMessage);
+                etapa++;
+                return "Informe seu CPF:";
+            case 1:
+                sessionData.put("cpf", userMessage);
+                etapa++;
+                return "Informe seu telefone:";
+            case 2:
+                sessionData.put("telefone", userMessage);
+                etapa++;
+                return "Informe seu e-mail:";
+            case 3:
+                sessionData.put("email", userMessage);
+                etapa++;
+                return "Informe sua data de nascimento (YYYY-MM-DD):";
+            case 4:
+                sessionData.put("nascimento", userMessage);
+                etapa++;
+                return "Informe seu endereço (Rua, Número, Bairro, Cidade, Estado, CEP):";
+            case 5:
+                sessionData.put("endereco", userMessage);
+                etapa++;
+                return "Possui plano de saúde? Se sim, informe o nome, número do cartão e validade (YYYY-MM-DD). Caso não, digite 'não'.";
+            case 6:
+                sessionData.put("plano_saude", userMessage);
+                etapa++;
+                return "Descreva seu histórico médico brevemente (doenças anteriores, tratamentos, exames):";
+            case 7:
+                sessionData.put("historico_medico", userMessage);
+                etapa++;
+                return "Descreva os sintomas atuais:";
+            case 8:
+                sessionData.put("sintomas", userMessage);
+                etapa++;
+                return "Informe a especialidade médica desejada (ex: Clínica Geral, Cardiologia, etc.):";
+            case 9:
+                sessionData.put("especialidade", userMessage);
+                etapa++;
+                return "Escolha uma data para a consulta:\n" + formatarOpcoes(DATAS);
+            case 10:
+                int dataEscolhida = Integer.parseInt(userMessage) - 1;
+                if (dataEscolhida >= 0 && dataEscolhida < DATAS.size()) {
+                    sessionData.put("data", DATAS.get(dataEscolhida));
+                    etapa++;
+                    return "Escolha um horário:\n" + formatarOpcoes(HORARIOS);
+                } else {
+                    return "Opção inválida. Escolha uma data válida:\n" + formatarOpcoes(DATAS);
+                }
+            case 11:
+                int horaEscolhida = Integer.parseInt(userMessage) - 1;
+                if (horaEscolhida >= 0 && horaEscolhida < HORARIOS.size()) {
+                    sessionData.put("hora", HORARIOS.get(horaEscolhida));
+                    salvarInformacoes();
+                    String dataConfirmada = sessionData.get("data");
+                    String horaConfirmada = sessionData.get("hora");
+                    resetarConversa();
+                    return "Consulta agendada com sucesso para " + dataConfirmada + " às " + horaConfirmada + ". ✅\nDeseja realizar outro atendimento? (sim / sair)";
+                } else {
+                    return "Opção inválida. Escolha um horário válido:\n" + formatarOpcoes(HORARIOS);
+                }
+            default:
+                resetarConversa();
+                return "Houve um problema. Vamos recomeçar.";
+        }
+    }
+
+    private String fluxoConsulta(String userMessage) {
+        try (Connection conn = Database.connect();
+             PreparedStatement stmt = conn.prepareStatement("SELECT data_consulta, hora_consulta FROM agendamento JOIN paciente ON paciente.id = agendamento.paciente_id WHERE paciente.cpf = ?")) {
+            stmt.setString(1, userMessage);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                String data = rs.getString("data_consulta");
+                String hora = rs.getString("hora_consulta");
+                resetarConversa();
+                return "Consulta agendada para o dia " + data + " às " + hora + ".\nDeseja realizar outra operação? (sim / sair)";
+            } else {
+                resetarConversa();
+                return "Nenhuma consulta encontrada para este CPF.\nDeseja realizar outra operação? (sim / sair)";
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            resetarConversa();
+            return "Erro ao consultar agendamento. Vamos tentar novamente.";
+        }
+    }
+
+    private String fluxoDesmarcar(String userMessage) {
+        try (Connection conn = Database.connect();
+             PreparedStatement stmt = conn.prepareStatement("DELETE FROM agendamento WHERE paciente_id = (SELECT id FROM paciente WHERE cpf = ?)")) {
+            stmt.setString(1, userMessage);
+            int rowsAffected = stmt.executeUpdate();
+            resetarConversa();
+            if (rowsAffected > 0) {
+                return "Consulta desmarcada com sucesso.\nDeseja realizar outra operação? (sim / sair)";
+            } else {
+                return "Nenhuma consulta encontrada para este CPF.\nDeseja realizar outra operação? (sim / sair)";
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            resetarConversa();
+            return "Erro ao desmarcar consulta. Vamos tentar novamente.";
+        }
+    }
+
+    private void salvarInformacoes() {
+        try (Connection conn = Database.connect()) {
+            conn.setAutoCommit(false);
+
+            // 1. Salvar paciente
+            try (PreparedStatement pacienteStmt = conn.prepareStatement(
+                    "INSERT INTO paciente (nome, cpf, telefone, email, nascimento) VALUES (?, ?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS)) {
+                pacienteStmt.setString(1, sessionData.get("nome"));
+                pacienteStmt.setString(2, sessionData.get("cpf"));
+                pacienteStmt.setString(3, sessionData.get("telefone"));
+                pacienteStmt.setString(4, sessionData.get("email"));
+                pacienteStmt.setString(5, sessionData.get("nascimento"));
+                pacienteStmt.executeUpdate();
+
+                ResultSet rs = pacienteStmt.getGeneratedKeys();
+                if (rs.next()) {
+                    int pacienteId = rs.getInt(1);
+
+                    // 2. Endereço
+                    try (PreparedStatement enderecoStmt = conn.prepareStatement(
+                            "INSERT INTO endereco (paciente_id, rua, numero, bairro, cidade, estado, cep) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+                        String[] enderecoParts = sessionData.get("endereco").split(",");
+                        enderecoStmt.setInt(1, pacienteId);
+                        enderecoStmt.setString(2, enderecoParts[0].trim());
+                        enderecoStmt.setString(3, enderecoParts[1].trim());
+                        enderecoStmt.setString(4, enderecoParts[2].trim());
+                        enderecoStmt.setString(5, enderecoParts[3].trim());
+                        enderecoStmt.setString(6, enderecoParts[4].trim());
+                        enderecoStmt.setString(7, enderecoParts[5].trim());
+                        enderecoStmt.executeUpdate();
+                    }
+
+                    // 3. Plano de Saúde
+                    if (!sessionData.get("plano_saude").equalsIgnoreCase("não")) {
+                        String[] planoParts = sessionData.get("plano_saude").split(",");
+                        try (PreparedStatement planoStmt = conn.prepareStatement(
+                                "INSERT INTO plano_saude (paciente_id, nome, numero_cartao, validade) VALUES (?, ?, ?, ?)")) {
+                            planoStmt.setInt(1, pacienteId);
+                            planoStmt.setString(2, planoParts[0].trim());
+                            planoStmt.setString(3, planoParts[1].trim());
+                            planoStmt.setString(4, planoParts[2].trim());
+                            planoStmt.executeUpdate();
+                        }
+                    }
+
+                    // 4. Histórico Médico
+                    try (PreparedStatement historicoStmt = conn.prepareStatement(
+                            "INSERT INTO historico_medico (paciente_id, diagnostico, tratamentos, exames_realizados) VALUES (?, ?, ?, ?)")) {
+                        historicoStmt.setInt(1, pacienteId);
+                        historicoStmt.setString(2, sessionData.get("historico_medico"));
+                        historicoStmt.setString(3, "N/A"); // Você pode separar em mais perguntas se quiser
+                        historicoStmt.setString(4, "N/A");
+                        historicoStmt.executeUpdate();
+                    }
+
+                    // 5. Triagem
+                    try (PreparedStatement triagemStmt = conn.prepareStatement(
+                            "INSERT INTO triagem (sintomas_relato, nivel_prioridade, mensagem_id) VALUES (?, ?, NULL)")) {
+                        triagemStmt.setString(1, sessionData.get("sintomas"));
+                        triagemStmt.setString(2, classificarPrioridade(sessionData.get("sintomas")));
+                        triagemStmt.executeUpdate();
+                    }
+
+                    // 6. Especialidade
+                    try (PreparedStatement especialidadeStmt = conn.prepareStatement(
+                            "INSERT INTO especialidade (nome) VALUES (?)")) {
+                        especialidadeStmt.setString(1, sessionData.get("especialidade"));
+                        especialidadeStmt.executeUpdate();
+                    }
+
+                    // 7. Agendamento
+                    try (PreparedStatement agendamentoStmt = conn.prepareStatement(
+                            "INSERT INTO agendamento (paciente_id, data_consulta, hora_consulta) VALUES (?, ?, ?)")) {
+                        agendamentoStmt.setInt(1, pacienteId);
+                        agendamentoStmt.setString(2, sessionData.get("data"));
+                        agendamentoStmt.setString(3, sessionData.get("hora"));
+                        agendamentoStmt.executeUpdate();
+                    }
+                }
+            }
+            conn.commit();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String classificarPrioridade(String texto) {
+        texto = texto.toLowerCase();
+        if (texto.contains("urgente") || texto.contains("dor no peito") || texto.contains("falta de ar")) {
+            return "Alta";
+        } else if (texto.contains("febre") || texto.contains("dor de cabeça") || texto.contains("tosse")) {
+            return "Média";
+        } else {
+            return "Baixa";
+        }
+    }
+
+    private String formatarOpcoes(List<String> opcoes) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < opcoes.size(); i++) {
+            sb.append(i + 1).append(") ").append(opcoes.get(i)).append("\n");
+        }
+        return sb.toString();
+    }
+
+    private void resetarConversa() {
+        sessionData.clear();
+        etapa = -1;
+        modo = "";
+    }
+
+    private void returnMenuInicial(PrintWriter out) {
+        out.println("Bem-vindo à OrioAI, seu assistente de agendamento médico.\n"
+                + "Como podemos te ajudar hoje?\n"
+                + "1) Agendar uma consulta\n"
+                + "2) Consultar meu agendamento\n"
+                + "3) Cancelar consulta\n"
+                + "Digite o número da opção desejada:");
+    }
+}
+

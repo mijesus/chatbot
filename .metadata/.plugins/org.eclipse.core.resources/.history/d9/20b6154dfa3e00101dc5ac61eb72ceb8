@@ -1,0 +1,32 @@
+package chatbotorioai;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+
+public class Database {
+    private static final String URL = "jdbc:sqlite:data/orioai.db";
+
+    // Método que abre a conexão com o banco de dados
+    public static Connection connect() throws SQLException {
+        return DriverManager.getConnection(URL);
+    }
+
+    // Método opcional para inicializar tabelas se quiser
+    public static void inicializarBanco() {
+        try (Connection conn = connect();
+             var stmt = conn.createStatement()) {
+
+            String sql = "CREATE TABLE IF NOT EXISTS paciente ("
+                       + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                       + "nome TEXT NOT NULL, "
+                       + "cpf TEXT, "
+                       + "telefone TEXT, "
+                       + "email TEXT, "
+                       + "nascimento TEXT);";
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}

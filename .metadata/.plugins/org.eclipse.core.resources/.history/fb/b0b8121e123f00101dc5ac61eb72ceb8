@@ -1,0 +1,114 @@
+package chatbotorioai;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.io.File;
+
+public class Database {
+    private static String databasePath;
+
+    public static void setDatabasePath(String realPath) {
+        databasePath = "jdbc:sqlite:" + realPath + File.separator + "data" + File.separator + "orioai.db";
+
+        // Cria o diretório data se não existir
+        File dataDir = new File(realPath + File.separator + "data");
+        if (!dataDir.exists()) {
+            dataDir.mkdirs();
+            System.out.println("Diretório 'data' criado em: " + dataDir.getAbsolutePath());
+        }
+    }
+
+    public static Connection connect() throws SQLException {
+        if (databasePath == null) {
+            throw new SQLException("Database path not set. Call Database.setDatabasePath(realPath) first.");
+        }
+        return DriverManager.getConnection(databasePath);
+    }
+
+    public static void inicializarBanco() {
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement()) {
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS paciente (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT NOT NULL,
+                    cpf TEXT UNIQUE NOT NULL,
+                    telefone TEXT,
+                    email TEXT,
+                    nascimento TEXT
+                );
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS endereco (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    paciente_id INTEGER NOT NULL,
+                    rua TEXT,
+                    numero TEXT,
+                    bairro TEXT,
+                    cidade TEXT,
+                    estado TEXT,
+                    cep TEXT,
+                    FOREIGN KEY (paciente_id) REFERENCES paciente(id)
+                );
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS plano_saude (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    paciente_id INTEGER NOT NULL,
+                    nome TEXT,
+                    numero_cartao TEXT,
+                    validade TEXT,
+                    FOREIGN KEY (paciente_id) REFERENCES paciente(id)
+                );
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS historico_medico (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    paciente_id INTEGER NOT NULL,
+                    diagnostico TEXT,
+                    tratamentos TEXT,
+                    exames_realizados TEXT,
+                    FOREIGN KEY (paciente_id) REFERENCES paciente(id)
+                );
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS triagem (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sintomas_relato TEXT,
+                    nivel_prioridade TEXT,
+                    mensagem_id INTEGER,
+                    FOREIGN KEY (mensagem_id) REFERENCES mensagem(id)
+                );
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS especialidade (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT NOT NULL
+                );
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS agendamento (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    paciente_id INTEGER NOT NULL,
+                    data_consulta TEXT,
+                    hora_consulta TEXT,
+                    FOREIGN KEY (paciente_id) REFERENCES paciente(id)
+                );
+            """);
+
+            System.out.println("Banco de dados inicializado com sucesso!");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
+

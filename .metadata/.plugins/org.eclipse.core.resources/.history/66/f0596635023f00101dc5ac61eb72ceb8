@@ -1,0 +1,120 @@
+package chatbotorioai;
+
+import javax.servlet.*;
+import javax.servlet.http.*;
+import java.io.*;
+import java.sql.*;
+
+public class ChatServlet extends HttpServlet {
+    private static final long serialVersionUID = 1L;
+
+    // Variáveis de controle da conversa
+    private String nome = "";
+    private String cpf = "";
+    private String telefone = "";
+    private String email = "";
+    private String nascimento = "";
+    private String sintomas = "";
+    private int etapa = 0; // 0: nome, 1: cpf, 2: telefone, etc.
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+        throws ServletException, IOException {
+
+        String userMessage = request.getParameter("message").trim();
+
+        response.setContentType("text/plain");
+        PrintWriter out = response.getWriter();
+
+        // Comando para encerrar
+        if (userMessage.equalsIgnoreCase("sair") || userMessage.equalsIgnoreCase("exit")) {
+            resetarConversa();
+            out.println("Conversa encerrada. Até logo!");
+            return;
+        }
+
+        String botResponse = "";
+
+        switch (etapa) {
+            case 0:
+                nome = userMessage;
+                botResponse = "Ótimo, " + nome + "! Qual seu CPF?";
+                etapa++;
+                break;
+            case 1:
+                cpf = userMessage;
+                botResponse = "Obrigado! Qual seu telefone?";
+                etapa++;
+                break;
+            case 2:
+                telefone = userMessage;
+                botResponse = "Agora me informe seu e-mail.";
+                etapa++;
+                break;
+            case 3:
+                email = userMessage;
+                botResponse = "Qual sua data de nascimento? (YYYY-MM-DD)";
+                etapa++;
+                break;
+            case 4:
+                nascimento = userMessage;
+                botResponse = "Agora me descreva seus sintomas.";
+                etapa++;
+                break;
+            case 5:
+                sintomas = userMessage;
+                String prioridade = classificarPrioridade(sintomas);
+
+                // Salva no banco
+                salvarPaciente(nome, cpf, telefone, email, nascimento, sintomas);
+
+                botResponse = "Triagem concluída! Sua prioridade é " + prioridade.toUpperCase() + ". Sua consulta será agendada! " +
+                              "Se quiser reiniciar, digite seu nome, ou digite 'sair' para encerrar.";
+                resetarConversa(); // Reseta para novo atendimento
+                break;
+            default:
+                botResponse = "Desculpe, não entendi. Vamos começar? Qual seu nome?";
+                etapa = 0;
+                break;
+        }
+
+        out.println(botResponse);
+    }
+
+    private void salvarPaciente(String nome, String cpf, String telefone, String email, String nascimento, String sintomas) {
+        try (Connection conn = Database.connect();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "INSERT INTO paciente (nome, cpf, telefone, email, nascimento) VALUES (?, ?, ?, ?, ?)")) {
+            stmt.setString(1, nome);
+            stmt.setString(2, cpf);
+            stmt.setString(3, telefone);
+            stmt.setString(4, email);
+            stmt.setString(5, nascimento);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String classificarPrioridade(String texto) {
+        texto = texto.toLowerCase();
+        if (texto.contains("urgente") || texto.contains("dor no peito") || texto.contains("falta de ar") || texto.contains("desmaio")) {
+            return "Alta";
+        } else if (texto.contains("febre") || texto.contains("tosse") || texto.contains("dor de cabeça")) {
+            return "Média";
+        } else {
+            return "Baixa";
+        }
+    }
+
+    private void resetarConversa() {
+        nome = "";
+        cpf = "";
+        telefone = "";
+        email = "";
+        nascimento = "";
+        sintomas = "";
+        etapa = 0;
+    }
+}
+

@@ -1,0 +1,1 @@
+0:0:0:0:0:0:0:1 - - [02/Jun/2025:18:36:33 -0300] "POST /SistemaTriagemOrioAI/chat HTTP/1.1" 200 78

@@ -1,0 +1,52 @@
+package chatbotorioai;
+
+import javax.servlet.*;
+import javax.servlet.http.*;
+import java.io.*;
+import java.sql.*;
+
+public class TriagemServlet extends HttpServlet {
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        String nome = request.getParameter("nome");
+        String cpf = request.getParameter("cpf");
+        String telefone = request.getParameter("telefone");
+        String email = request.getParameter("email");
+        String nascimento = request.getParameter("nascimento");
+        String sintomas = request.getParameter("sintomas");
+
+        String prioridade = classificarPrioridade(sintomas);
+
+        try (Connection conn = Database.connect();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "INSERT INTO paciente (nome, cpf, telefone, email, nascimento) VALUES (?, ?, ?, ?, ?)")) {
+            stmt.setString(1, nome);
+            stmt.setString(2, cpf);
+            stmt.setString(3, telefone);
+            stmt.setString(4, email);
+            stmt.setString(5, nascimento);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+        out.println("<html><body>");
+        out.println("<h2>Triagem realizada!</h2>");
+        out.println("<p>Paciente: " + nome + "</p>");
+        out.println("<p>Prioridade: " + prioridade + "</p>");
+        out.println("<a href='index.html'>Voltar</a>");
+        out.println("</body></html>");
+    }
+
+    private String classificarPrioridade(String texto) {
+        texto = texto.toLowerCase();
+        if (texto.contains("dor no peito") || texto.contains("falta de ar") || texto.contains("desmaio")) {
+            return "Alta";
+        } else if (texto.contains("febre") || texto.contains("tosse") || texto.contains("dor de cabeça")) {
+            return "Média";
+        } else {
+            return "Baixa";
+        }
+    }
+}

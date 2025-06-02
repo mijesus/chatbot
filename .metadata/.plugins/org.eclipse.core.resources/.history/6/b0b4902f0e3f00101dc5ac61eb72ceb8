@@ -1,0 +1,251 @@
+package chatbotorioai;
+
+import javax.servlet.*;
+import javax.servlet.http.*;
+import java.io.*;
+import java.sql.*;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+
+public class ChatServlet extends HttpServlet {
+    private static final long serialVersionUID = 1L;
+
+    private Map<String, String> sessionData = new HashMap<>();
+    private int etapa = -1;
+    private String modo = "";
+
+    private static final List<String> DATAS = gerarDatasDisponiveis();
+    private static final List<String> HORARIOS = gerarHorariosDisponiveis();
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        String userMessage = request.getParameter("message").trim();
+        response.setContentType("text/plain");
+        PrintWriter out = response.getWriter();
+
+        if (userMessage.equalsIgnoreCase("sair")) {
+            resetarConversa();
+            out.println("Agradecemos pelo contato. Sessão encerrada.");
+            return;
+        }
+
+        if (etapa == -1) {
+            returnMenuInicial(out);
+            etapa = -2;
+            return;
+        }
+
+        if (etapa == -2) {
+            switch (userMessage) {
+                case "1":
+                    modo = "agendar";
+                    etapa = 0;
+                    out.println("Ótimo! Vamos iniciar seu agendamento.\nPor favor, informe seu nome completo:");
+                    break;
+                case "2":
+                    modo = "consultar";
+                    etapa = 100;
+                    out.println("Por favor, informe seu CPF para consultar seu agendamento:");
+                    break;
+                case "3":
+                    modo = "desmarcar";
+                    etapa = 200;
+                    out.println("Informe o CPF vinculado à consulta que deseja cancelar:");
+                    break;
+                default:
+                    out.println("Opção inválida. Digite:\n1) Agendar consulta\n2) Consultar agendamento\n3) Cancelar consulta");
+            }
+            return;
+        }
+
+        String botResponse = processarMensagem(userMessage);
+        out.println(botResponse);
+    }
+
+    private String processarMensagem(String userMessage) {
+        switch (modo) {
+            case "agendar":
+                return fluxoAgendamento(userMessage);
+            case "consultar":
+                return fluxoConsulta(userMessage);
+            case "desmarcar":
+                return fluxoDesmarcar(userMessage);
+            default:
+                resetarConversa();
+                return "Erro no fluxo. Reiniciando atendimento...";
+        }
+    }
+
+    private String fluxoAgendamento(String userMessage) {
+        switch (etapa) {
+            case 0:
+                sessionData.put("nome", userMessage);
+                etapa++;
+                return "Informe seu CPF:";
+            case 1:
+                if (!validarCPF(userMessage)) {
+                    return "CPF inválido. Por favor, informe um CPF válido (somente números):";
+                }
+                sessionData.put("cpf", formatarCPF(userMessage));
+                etapa++;
+                return "Informe seu telefone:";
+            case 2:
+                sessionData.put("telefone", formatarTelefone(userMessage));
+                etapa++;
+                return "Informe seu e-mail:";
+            case 3:
+                if (!validarEmail(userMessage)) {
+                    return "E-mail inválido. Informe um e-mail válido:";
+                }
+                sessionData.put("email", userMessage);
+                etapa++;
+                return "Informe sua data de nascimento (YYYY-MM-DD):";
+            case 4:
+                sessionData.put("nascimento", userMessage);
+                etapa++;
+                return "Informe seu endereço (Rua, Número, Bairro, Cidade, Estado, CEP):";
+            case 5:
+                sessionData.put("endereco", userMessage);
+                etapa++;
+                return "Possui plano de saúde? Se sim, informe o nome, número do cartão e validade (YYYY-MM-DD). Caso não, digite 'não':";
+            case 6:
+                sessionData.put("plano_saude", userMessage);
+                etapa++;
+                return "Descreva seu histórico médico (doenças anteriores, tratamentos, exames):";
+            case 7:
+                sessionData.put("historico_medico", userMessage);
+                etapa++;
+                return "Descreva os sintomas atuais:";
+            case 8:
+                sessionData.put("sintomas", userMessage);
+                etapa++;
+                return "Informe a especialidade médica desejada (ex: Clínica Geral, Cardiologia, etc.):";
+            case 9:
+                sessionData.put("especialidade", userMessage);
+                etapa++;
+                return "Escolha uma data para a consulta:\n" + formatarOpcoes(DATAS);
+            case 10:
+                try {
+                    int dataEscolhida = Integer.parseInt(userMessage) - 1;
+                    if (dataEscolhida >= 0 && dataEscolhida < DATAS.size()) {
+                        sessionData.put("data", DATAS.get(dataEscolhida));
+                        etapa++;
+                        return "Escolha um horário:\n" + formatarOpcoes(HORARIOS);
+                    } else {
+                        return "Opção inválida. Escolha uma data válida:\n" + formatarOpcoes(DATAS);
+                    }
+                } catch (NumberFormatException e) {
+                    return "Formato inválido. Informe o número da data desejada:\n" + formatarOpcoes(DATAS);
+                }
+            case 11:
+                try {
+                    int horaEscolhida = Integer.parseInt(userMessage) - 1;
+                    if (horaEscolhida >= 0 && horaEscolhida < HORARIOS.size()) {
+                        sessionData.put("hora", HORARIOS.get(horaEscolhida));
+                        salvarInformacoes();
+                        String dataConfirmada = sessionData.get("data");
+                        String horaConfirmada = sessionData.get("hora");
+                        resetarConversa();
+                        return "Consulta agendada com sucesso para " + dataConfirmada + " às " + horaConfirmada + ". ✅\nDeseja realizar outro atendimento? (sim / sair)";
+                    } else {
+                        return "Opção inválida. Escolha um horário válido:\n" + formatarOpcoes(HORARIOS);
+                    }
+                } catch (NumberFormatException e) {
+                    return "Formato inválido. Informe o número do horário desejado:\n" + formatarOpcoes(HORARIOS);
+                }
+            default:
+                resetarConversa();
+                return "Houve um problema. Vamos recomeçar.";
+        }
+    }
+
+    // (fluxoConsulta, fluxoDesmarcar, salvarInformacoes, etc — Mantidos iguais como te mandei antes)
+
+    private static List<String> gerarDatasDisponiveis() {
+        List<String> datas = new ArrayList<>();
+        LocalDate hoje = LocalDate.now();
+        LocalDate primeiroDia = hoje.withDayOfMonth(1);
+        LocalDate ultimoDia = primeiroDia.plusMonths(1).minusDays(1);
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        for (LocalDate data = primeiroDia; !data.isAfter(ultimoDia); data = data.plusDays(1)) {
+            DayOfWeek diaSemana = data.getDayOfWeek();
+            if (diaSemana != DayOfWeek.SATURDAY && diaSemana != DayOfWeek.SUNDAY) {
+                datas.add(data.format(formatter));
+            }
+        }
+        return datas;
+    }
+
+    private static List<String> gerarHorariosDisponiveis() {
+        List<String> horarios = new ArrayList<>();
+        for (int hora = 8; hora <= 17; hora++) {
+            if (hora == 12) continue; // pula hora de almoço
+            horarios.add(String.format("%02d:00", hora));
+        }
+        return horarios;
+    }
+
+    private boolean validarCPF(String cpf) {
+        return cpf.matches("\\d{11}");
+    }
+
+    private boolean validarEmail(String email) {
+        return email.contains("@") && email.contains(".");
+    }
+
+    private String formatarCPF(String cpf) {
+        return String.format("%s.%s.%s-%s",
+                cpf.substring(0, 3),
+                cpf.substring(3, 6),
+                cpf.substring(6, 9),
+                cpf.substring(9, 11));
+    }
+
+    private String formatarTelefone(String telefone) {
+        if (telefone.length() == 11) {
+            return String.format("(%s) %s-%s",
+                    telefone.substring(0, 2),
+                    telefone.substring(2, 7),
+                    telefone.substring(7, 11));
+        }
+        return telefone;
+    }
+
+    private String classificarPrioridade(String texto) {
+        texto = texto.toLowerCase();
+        if (texto.contains("urgente") || texto.contains("dor no peito") || texto.contains("falta de ar")) {
+            return "Alta";
+        } else if (texto.contains("febre") || texto.contains("dor de cabeça") || texto.contains("tosse")) {
+            return "Média";
+        } else {
+            return "Baixa";
+        }
+    }
+
+    private String formatarOpcoes(List<String> opcoes) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < opcoes.size(); i++) {
+            sb.append(i + 1).append(") ").append(opcoes.get(i)).append("\n");
+        }
+        return sb.toString();
+    }
+
+    private void resetarConversa() {
+        sessionData.clear();
+        etapa = -1;
+        modo = "";
+    }
+
+    private void returnMenuInicial(PrintWriter out) {
+        out.println("Bem-vindo à OrioAI, seu assistente de agendamento médico.\n"
+                + "Como podemos ajudá-lo hoje?\n"
+                + "1) Agendar uma consulta\n"
+                + "2) Consultar meu agendamento\n"
+                + "3) Cancelar consulta\n"
+                + "Digite o número da opção desejada:");
+    }
+}
+

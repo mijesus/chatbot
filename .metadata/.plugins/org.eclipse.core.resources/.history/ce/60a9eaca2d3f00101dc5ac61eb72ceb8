@@ -1,0 +1,89 @@
+package chatbotorioai;
+
+import java.sql.*;
+
+public class Database {
+    private static String databasePath;
+
+    public static void setDatabasePath(String realPath) {
+        databasePath = realPath + "/data/orioai.db";
+        System.out.println("Caminho do banco de dados: " + databasePath);
+    }
+
+    public static Connection connect() throws SQLException {
+        return DriverManager.getConnection("jdbc:sqlite:" + databasePath);
+    }
+
+    public static void inicializarBanco() {
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement()) {
+
+            // Ativar chave estrangeira no SQLite
+            stmt.execute("PRAGMA foreign_keys = ON");
+
+            // Criar tabelas se não existirem
+            stmt.execute("CREATE TABLE IF NOT EXISTS paciente (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "nome TEXT NOT NULL," +
+                    "cpf TEXT UNIQUE NOT NULL," +
+                    "telefone TEXT NOT NULL," +
+                    "email TEXT NOT NULL," +
+                    "nascimento TEXT NOT NULL" +
+                    ")");
+
+            stmt.execute("CREATE TABLE IF NOT EXISTS endereco (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "paciente_id INTEGER NOT NULL," +
+                    "rua TEXT NOT NULL," +
+                    "numero TEXT NOT NULL," +
+                    "bairro TEXT NOT NULL," +
+                    "cidade TEXT NOT NULL," +
+                    "estado TEXT NOT NULL," +
+                    "cep TEXT NOT NULL," +
+                    "FOREIGN KEY (paciente_id) REFERENCES paciente(id) ON DELETE CASCADE" +
+                    ")");
+
+            stmt.execute("CREATE TABLE IF NOT EXISTS plano_saude (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "paciente_id INTEGER NOT NULL," +
+                    "nome TEXT NOT NULL," +
+                    "numero_cartao TEXT NOT NULL," +
+                    "validade TEXT NOT NULL," +
+                    "FOREIGN KEY (paciente_id) REFERENCES paciente(id) ON DELETE CASCADE" +
+                    ")");
+
+            stmt.execute("CREATE TABLE IF NOT EXISTS historico_medico (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "paciente_id INTEGER NOT NULL," +
+                    "diagnostico TEXT NOT NULL," +
+                    "tratamentos TEXT NOT NULL," +
+                    "exames_realizados TEXT NOT NULL," +
+                    "FOREIGN KEY (paciente_id) REFERENCES paciente(id) ON DELETE CASCADE" +
+                    ")");
+
+            stmt.execute("CREATE TABLE IF NOT EXISTS triagem (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "sintomas_relato TEXT NOT NULL," +
+                    "nivel_prioridade TEXT NOT NULL," +
+                    "mensagem_id INTEGER" +
+                    ")");
+
+            stmt.execute("CREATE TABLE IF NOT EXISTS especialidade (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "nome TEXT NOT NULL" +
+                    ")");
+
+            stmt.execute("CREATE TABLE IF NOT EXISTS agendamento (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "paciente_id INTEGER NOT NULL," +
+                    "data_consulta TEXT NOT NULL," +
+                    "hora_consulta TEXT NOT NULL," +
+                    "FOREIGN KEY (paciente_id) REFERENCES paciente(id) ON DELETE CASCADE" +
+                    ")");
+
+            System.out.println("Banco de dados inicializado com sucesso!");
+        } catch (SQLException e) {
+            System.err.println("Erro ao inicializar banco: " + e.getMessage());
+        }
+    }
+}

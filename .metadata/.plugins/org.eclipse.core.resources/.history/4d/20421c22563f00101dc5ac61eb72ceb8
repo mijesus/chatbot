@@ -1,0 +1,71 @@
+package chatbotorioai;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+
+public class Database {
+
+    private static final String URL = "jdbc:mysql://localhost:3306/triagemorioai?useSSL=false&serverTimezone=UTC";
+    private static final String USER = "root";
+    private static final String PASSWORD = "Luci@123"; // <-- coloque a sua senha do MySQL aqui
+
+    public static Connection connect() throws SQLException {
+        return DriverManager.getConnection(URL, USER, PASSWORD);
+    }
+
+    public static void inicializarBanco() {
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement()) {
+
+            // Criação das tabelas, se necessário
+            stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS paciente (" +
+                            "id INT AUTO_INCREMENT PRIMARY KEY," +
+                            "nome VARCHAR(100)," +
+                            "cpf VARCHAR(11) UNIQUE," +
+                            "telefone VARCHAR(11)," +
+                            "email VARCHAR(100)," +
+                            "nascimento DATE" +
+                            ")");
+
+            stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS endereco (" +
+                            "id INT AUTO_INCREMENT PRIMARY KEY," +
+                            "paciente_id INT," +
+                            "rua VARCHAR(100)," +
+                            "numero VARCHAR(10)," +
+                            "bairro VARCHAR(50)," +
+                            "cidade VARCHAR(50)," +
+                            "estado VARCHAR(2)," +
+                            "cep VARCHAR(8)," +
+                            "FOREIGN KEY (paciente_id) REFERENCES paciente(id)" +
+                            ")");
+
+            stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS plano_saude (" +
+                            "id INT AUTO_INCREMENT PRIMARY KEY," +
+                            "paciente_id INT," +
+                            "nome VARCHAR(100)," +
+                            "numero_cartao VARCHAR(30)," +
+                            "validade DATE," +
+                            "FOREIGN KEY (paciente_id) REFERENCES paciente(id)" +
+                            ")");
+
+            stmt.executeUpdate(
+                    "CREATE TABLE IF NOT EXISTS agendamento (" +
+                            "id INT AUTO_INCREMENT PRIMARY KEY," +
+                            "paciente_id INT," +
+                            "data_consulta DATE," +
+                            "hora_consulta VARCHAR(5)," +
+                            "FOREIGN KEY (paciente_id) REFERENCES paciente(id)" +
+                            ")");
+
+            System.out.println("Banco de dados inicializado com sucesso!");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
+

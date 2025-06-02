@@ -1,0 +1,10 @@
+INDEX VERSION 1.4+C:\Users\mijes\OneDrive\Área de Trabalho\Projeto ChatBot\.metadata\.plugins\org.eclipse.wst.jsdt.core\indexes
+2293973826.index
+2065584962.index
+515321326.index
+1448784356.index
+515321326.index
+3868763062.index
+1442925728.index
+3085396783.index
+3012601530.index

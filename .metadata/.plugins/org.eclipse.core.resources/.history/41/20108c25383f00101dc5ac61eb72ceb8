@@ -1,0 +1,109 @@
+package chatbotorioai;
+
+import java.sql.*;
+
+public class Database {
+
+    // Configurações de conexão com MySQL
+    private static final String URL = "jdbc:mysql://localhost:3306/orioai?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true";
+    private static final String USER = "root";  // Substitua pelo seu usuário do MySQL
+    private static final String PASSWORD = "Luci@123";  // Substitua pela sua senha do MySQL
+
+    // Conectar ao banco
+    public static Connection connect() throws SQLException {
+        return DriverManager.getConnection(URL, USER, PASSWORD);
+    }
+
+    // Inicializar banco e criar tabelas se não existirem
+    public static void inicializarBanco() {
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement()) {
+
+            // Criar a tabela paciente
+            stmt.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS paciente (" +
+                "id INT AUTO_INCREMENT PRIMARY KEY," +
+                "nome VARCHAR(255) NOT NULL," +
+                "cpf VARCHAR(11) UNIQUE NOT NULL," +
+                "telefone VARCHAR(11) NOT NULL," +
+                "email VARCHAR(255) NOT NULL," +
+                "nascimento DATE NOT NULL" +
+                ")"
+            );
+
+            // Criar a tabela endereco
+            stmt.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS endereco (" +
+                "id INT AUTO_INCREMENT PRIMARY KEY," +
+                "paciente_id INT NOT NULL," +
+                "rua VARCHAR(255) NOT NULL," +
+                "numero VARCHAR(10) NOT NULL," +
+                "bairro VARCHAR(100) NOT NULL," +
+                "cidade VARCHAR(100) NOT NULL," +
+                "estado VARCHAR(2) NOT NULL," +
+                "cep VARCHAR(9) NOT NULL," +
+                "FOREIGN KEY (paciente_id) REFERENCES paciente(id) ON DELETE CASCADE" +
+                ")"
+            );
+
+            // Criar a tabela plano_saude
+            stmt.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS plano_saude (" +
+                "id INT AUTO_INCREMENT PRIMARY KEY," +
+                "paciente_id INT NOT NULL," +
+                "nome VARCHAR(255) NOT NULL," +
+                "numero_cartao VARCHAR(50) NOT NULL," +
+                "validade DATE NOT NULL," +
+                "FOREIGN KEY (paciente_id) REFERENCES paciente(id) ON DELETE CASCADE" +
+                ")"
+            );
+
+            // Criar a tabela historico_medico
+            stmt.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS historico_medico (" +
+                "id INT AUTO_INCREMENT PRIMARY KEY," +
+                "paciente_id INT NOT NULL," +
+                "diagnostico TEXT NOT NULL," +
+                "tratamentos TEXT NOT NULL," +
+                "exames_realizados TEXT NOT NULL," +
+                "FOREIGN KEY (paciente_id) REFERENCES paciente(id) ON DELETE CASCADE" +
+                ")"
+            );
+
+            // Criar a tabela triagem
+            stmt.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS triagem (" +
+                "id INT AUTO_INCREMENT PRIMARY KEY," +
+                "sintomas_relato TEXT NOT NULL," +
+                "nivel_prioridade VARCHAR(20) NOT NULL," +
+                "mensagem_id INT" +
+                ")"
+            );
+
+            // Criar a tabela especialidade
+            stmt.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS especialidade (" +
+                "id INT AUTO_INCREMENT PRIMARY KEY," +
+                "nome VARCHAR(100) NOT NULL" +
+                ")"
+            );
+
+            // Criar a tabela agendamento
+            stmt.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS agendamento (" +
+                "id INT AUTO_INCREMENT PRIMARY KEY," +
+                "paciente_id INT NOT NULL," +
+                "data_consulta DATE NOT NULL," +
+                "hora_consulta TIME NOT NULL," +
+                "FOREIGN KEY (paciente_id) REFERENCES paciente(id) ON DELETE CASCADE" +
+                ")"
+            );
+
+            System.out.println("Banco de dados inicializado com sucesso!");
+
+        } catch (SQLException e) {
+            System.err.println("Erro ao inicializar banco: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}

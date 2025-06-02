@@ -1,0 +1,154 @@
+package chatbotorioai;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.*;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.sql.*;
+
+@WebServlet("/chat")
+public class ChatServlet extends HttpServlet {
+
+    @Override
+    public void init() throws ServletException {
+        super.init();
+        Database.inicializarBanco();  // Inicializa o banco ao subir o servlet
+    }
+
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        processarMensagem(request, response);
+    }
+
+    private void processarMensagem(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String acao = request.getParameter("acao");
+        
+        if ("agendar".equalsIgnoreCase(acao)) {
+            fluxoAgendamento(request, response);
+        } else if ("consultar".equalsIgnoreCase(acao)) {
+            fluxoConsulta(request, response);
+        } else {
+            respostaPadrao(response);
+        }
+    }
+
+    private void fluxoAgendamento(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        try {
+            salvarInformacoes(request);
+            PrintWriter out = response.getWriter();
+            out.println("Agendamento realizado com sucesso!");
+        } catch (Exception e) {
+            e.printStackTrace();
+            PrintWriter out = response.getWriter();
+            out.println("Erro ao agendar: " + e.getMessage());
+        }
+    }
+
+    private void fluxoConsulta(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        try (Connection conn = Database.connect()) {
+            String cpf = request.getParameter("cpf");
+
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM paciente WHERE cpf = ?");
+            stmt.setString(1, cpf);
+            ResultSet rs = stmt.executeQuery();
+
+            PrintWriter out = response.getWriter();
+            if (rs.next()) {
+                out.println("Paciente encontrado: " + rs.getString("nome"));
+            } else {
+                out.println("Paciente não encontrado.");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            PrintWriter out = response.getWriter();
+            out.println("Erro ao consultar: " + e.getMessage());
+        }
+    }
+
+    private void respostaPadrao(HttpServletResponse response) throws IOException {
+        PrintWriter out = response.getWriter();
+        out.println("Bem-vindo ao Chat de Triagem Médica. Informe sua necessidade.");
+    }
+
+    private void salvarInformacoes(HttpServletRequest request) throws SQLException {
+        try (Connection conn = Database.connect()) {
+
+            // Inserir paciente
+            PreparedStatement pacienteStmt = conn.prepareStatement(
+                "INSERT INTO paciente (nome, cpf, telefone, email, nascimento) VALUES (?, ?, ?, ?, ?)",
+                Statement.RETURN_GENERATED_KEYS
+            );
+
+            pacienteStmt.setString(1, request.getParameter("nome"));
+            pacienteStmt.setString(2, request.getParameter("cpf"));
+            pacienteStmt.setString(3, request.getParameter("telefone"));
+            pacienteStmt.setString(4, request.getParameter("email"));
+            pacienteStmt.setDate(5, Date.valueOf(request.getParameter("nascimento")));
+            pacienteStmt.executeUpdate();
+
+            ResultSet generatedKeys = pacienteStmt.getGeneratedKeys();
+            generatedKeys.next();
+            int pacienteId = generatedKeys.getInt(1);
+
+            // Inserir endereco
+            PreparedStatement enderecoStmt = conn.prepareStatement(
+                "INSERT INTO endereco (paciente_id, rua, numero, bairro, cidade, estado, cep) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            );
+            enderecoStmt.setInt(1, pacienteId);
+            enderecoStmt.setString(2, request.getParameter("rua"));
+            enderecoStmt.setString(3, request.getParameter("numero"));
+            enderecoStmt.setString(4, request.getParameter("bairro"));
+            enderecoStmt.setString(5, request.getParameter("cidade"));
+
+            // Aqui a correção: garantir que seja só sigla (2 letras)
+            String estado = request.getParameter("estado");
+            if (estado.length() > 2) {
+                estado = estado.substring(0, 2).toUpperCase(); // Pega só as 2 primeiras letras
+            } else {
+                estado = estado.toUpperCase();
+            }
+
+            enderecoStmt.setString(6, estado);
+            enderecoStmt.setString(7, request.getParameter("cep"));
+            enderecoStmt.executeUpdate();
+
+            // Inserir plano de saúde
+            PreparedStatement planoStmt = conn.prepareStatement(
+                "INSERT INTO plano_saude (paciente_id, nome, numero_cartao, validade) VALUES (?, ?, ?, ?)"
+            );
+            planoStmt.setInt(1, pacienteId);
+            planoStmt.setString(2, request.getParameter("plano_nome"));
+            planoStmt.setString(3, request.getParameter("numero_cartao"));
+            planoStmt.setDate(4, Date.valueOf(request.getParameter("validade")));
+            planoStmt.executeUpdate();
+
+            // Inserir histórico médico
+            PreparedStatement historicoStmt = conn.prepareStatement(
+                "INSERT INTO historico_medico (paciente_id, diagnostico, tratamentos, exames_realizados) VALUES (?, ?, ?, ?)"
+            );
+            historicoStmt.setInt(1, pacienteId);
+            historicoStmt.setString(2, request.getParameter("diagnostico"));
+            historicoStmt.setString(3, request.getParameter("tratamentos"));
+            historicoStmt.setString(4, request.getParameter("exames_realizados"));
+            historicoStmt.executeUpdate();
+
+            // Inserir triagem
+            PreparedStatement triagemStmt = conn.prepareStatement(
+                "INSERT INTO triagem (sintomas_relato, nivel_prioridade, mensagem_id) VALUES (?, ?, ?)"
+            );
+            triagemStmt.setString(1, request.getParameter("sintomas_relato"));
+            triagemStmt.setString(2, request.getParameter("nivel_prioridade"));
+            triagemStmt.setInt(3, pacienteId);  // Relaciona o paciente ao triagem
+            triagemStmt.executeUpdate();
+
+            // Inserir agendamento
+            PreparedStatement agendamentoStmt = conn.prepareStatement(
+                "INSERT INTO agendamento (paciente_id, data_consulta, hora_consulta) VALUES (?, ?, ?)"
+            );
+            agendamentoStmt.setInt(1, pacienteId);
+            agendamentoStmt.setDate(2, Date.valueOf(request.getParameter("data_consulta")));
+            agendamentoStmt.setTime(3, Time.valueOf(request.getParameter("hora_consulta")));
+            agendamentoStmt.executeUpdate();
+        }
+    }
+}

@@ -1,0 +1,176 @@
+package chatbotorioai;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+import javax.servlet.ServletContext;
+
+public class Database {
+
+    private static String dbPath = null;
+
+    // Método para inicializar o caminho do banco dinamicamente
+    public static void initialize(ServletContext context) {
+        dbPath = context.getRealPath("/data/orioai.db");  // Caminho dinâmico baseado no projeto
+        System.out.println("Caminho do banco de dados: " + dbPath);
+    }
+
+    // Método de conexão
+    public static Connection connect() throws SQLException {
+        if (dbPath == null) {
+            throw new SQLException("Banco de dados não inicializado. Chame initialize() antes de conectar.");
+        }
+        return DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+    }
+
+    // Método que inicializa as tabelas
+    public static void inicializarBanco() {
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement()) {
+
+            // Tabela Paciente
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS paciente (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT NOT NULL,
+                    cpf TEXT,
+                    telefone TEXT,
+                    email TEXT,
+                    nascimento TEXT
+                );
+            """);
+
+            // Tabela Medico
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS medico (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT NOT NULL,
+                    crm TEXT,
+                    especialidade_id INTEGER,
+                    FOREIGN KEY (especialidade_id) REFERENCES especialidade(id)
+                );
+            """);
+
+            // Tabela Agendamento
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS agendamento (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    paciente_id INTEGER,
+                    medico_id INTEGER,
+                    data_consulta TEXT,
+                    hora_consulta TEXT,
+                    FOREIGN KEY (paciente_id) REFERENCES paciente(id),
+                    FOREIGN KEY (medico_id) REFERENCES medico(id)
+                );
+            """);
+
+            // Tabela Recepcionista
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS recepcionista (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT NOT NULL,
+                    matricula TEXT
+                );
+            """);
+
+            // Tabela Chatbot
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS chatbot (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT,
+                    versao TEXT
+                );
+            """);
+
+            // Tabela Mensagem
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS mensagem (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    conteudo TEXT,
+                    data_envio TEXT,
+                    paciente_id INTEGER,
+                    chatbot_id INTEGER,
+                    FOREIGN KEY (paciente_id) REFERENCES paciente(id),
+                    FOREIGN KEY (chatbot_id) REFERENCES chatbot(id)
+                );
+            """);
+
+            // Tabela Triagem
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS triagem (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sintomas_relato TEXT,
+                    nivel_prioridade TEXT,
+                    mensagem_id INTEGER,
+                    FOREIGN KEY (mensagem_id) REFERENCES mensagem(id)
+                );
+            """);
+
+            // Tabela Atendimento
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS atendimento (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    descricao TEXT,
+                    data TEXT,
+                    medico_id INTEGER,
+                    paciente_id INTEGER,
+                    FOREIGN KEY (medico_id) REFERENCES medico(id),
+                    FOREIGN KEY (paciente_id) REFERENCES paciente(id)
+                );
+            """);
+
+            // Tabela Especialidade
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS especialidade (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT NOT NULL
+                );
+            """);
+
+            // Tabela Endereco
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS endereco (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    paciente_id INTEGER,
+                    rua TEXT,
+                    numero TEXT,
+                    bairro TEXT,
+                    cidade TEXT,
+                    estado TEXT,
+                    cep TEXT,
+                    FOREIGN KEY (paciente_id) REFERENCES paciente(id)
+                );
+            """);
+
+            // Tabela Plano de Saúde
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS plano_saude (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    paciente_id INTEGER,
+                    nome TEXT,
+                    numero_cartao TEXT,
+                    validade TEXT,
+                    FOREIGN KEY (paciente_id) REFERENCES paciente(id)
+                );
+            """);
+
+            // Tabela Historico Medico
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS historico_medico (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    paciente_id INTEGER,
+                    diagnostico TEXT,
+                    tratamentos TEXT,
+                    exames_realizados TEXT,
+                    FOREIGN KEY (paciente_id) REFERENCES paciente(id)
+                );
+            """);
+
+            System.out.println("Banco de dados inicializado com sucesso!");
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}

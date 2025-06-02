@@ -1,0 +1,174 @@
+package chatbotorioai;
+
+import javax.servlet.*;
+import javax.servlet.http.*;
+import java.io.*;
+import java.sql.*;
+
+public class ConsultarServlet extends HttpServlet {
+    private static final long serialVersionUID = 1L;
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        String cpf = request.getParameter("cpf");
+
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+        out.println("<html><body>");
+        out.println("<h2>Informações da Consulta</h2>");
+
+        try (Connection conn = Database.connect()) {
+            // Consulta paciente
+            PreparedStatement stmt = conn.prepareStatement(
+                "SELECT id, nome, telefone, email, nascimento FROM paciente WHERE cpf = ?"
+            );
+            stmt.setString(1, cpf);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                int pacienteId = rs.getInt("id");
+                out.println("<p><strong>Nome:</strong> " + rs.getString("nome") + "</p>");
+                out.println("<p><strong>Telefone:</strong> " + rs.getString("telefone") + "</p>");
+                out.println("<p><strong>Email:</strong> " + rs.getString("email") + "</p>");
+                out.println("<p><strong>Data de Nascimento:</strong> " + rs.getString("nascimento") + "</p>");
+
+                // Consulta endereço
+                PreparedStatement enderecoStmt = conn.prepareStatement(
+                    "SELECT rua, numero, bairro, cidade, estado, cep FROM endereco WHERE paciente_id = ?"
+                );
+                enderecoStmt.setInt(1, pacienteId);
+                ResultSet enderecoRs = enderecoStmt.executeQuery();
+
+                if (enderecoRs.next()) {
+                    out.println("<h3>Endereço</h3>");
+                    out.println("<p><strong>Rua:</strong> " + enderecoRs.getString("rua") + "</p>");
+                    out.println("<p><strong>Número:</strong> " + enderecoRs.getString("numero") + "</p>");
+                    out.println("<p><strong>Bairro:</strong> " + enderecoRs.getString("bairro") + "</p>");
+                    out.println("<p><strong>Cidade:</strong> " + enderecoRs.getString("cidade") + "</p>");
+                    out.println("<p><strong>Estado:</strong> " + enderecoRs.getString("estado") + "</p>");
+                    out.println("<p><strong>CEP:</strong> " + enderecoRs.getString("cep") + "</p>");
+                }
+
+                // Consulta agendamento
+                PreparedStatement agendamentoStmt = conn.prepareStatement(
+                    "SELECT data_consulta, hora_consulta FROM agendamento WHERE paciente_id = ?"
+                );
+                agendamentoStmt.setInt(1, pacienteId);
+                ResultSet agendamentoRs = agendamentoStmt.executeQuery();
+
+                if (agendamentoRs.next()) {
+                    out.println("<h3>Agendamento</h3>");
+                    out.println("<p><strong>Data:</strong> " + agendamentoRs.getString("data_consulta") + "</p>");
+                    out.println("<p><strong>Hora:</strong> " + agendamentoRs.getString("hora_consulta") + "</p>");
+                } else {
+                    out.println("<p><strong>Agendamento:</strong> Nenhum agendamento encontrado.</p>");
+                }
+            } else {
+                out.println("<p>CPF não encontrado no sistema.</p>");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        out.println("<a href='consultar.html'>Voltar</a>");
+        out.println("</body></html>");
+    }
+
+	<!DOCTYPE html>
+	<html lang="pt-BR">
+	<head>
+	    <meta charset="UTF-8">
+	    <title>ChatBot OrioAI</title>
+	    <style>
+	        body {
+	            font-family: Arial, sans-serif;
+	            margin: 0;
+	            padding: 20px;
+	            background: linear-gradient(135deg, #2c3e50, #3498db); /* Degradê cinza escuro para azul */
+	            display: flex;
+	            justify-content: center;
+	            align-items: center;
+	            height: 100vh;
+	        }
+	        #chat-container {
+	            background: #ffffff;
+	            width: 400px;
+	            height: 600px;
+	            display: flex;
+	            flex-direction: column;
+	            border-radius: 12px;
+	            overflow: hidden;
+	            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	            border: 3px solid #3498db; /* Azul mais vibrante */
+	        }
+	        #chat {
+	            flex: 1;
+	            padding: 15px;
+	            overflow-y: auto;
+	            background: linear-gradient(135deg, #ecf0f1, #d0d3d4); /* Degradê cinza claro */
+	        }
+	        .message {
+	            display: flex;
+	            align-items: flex-end;
+	            max-width: 80%;
+	            margin: 10px 0;
+	            animation: fadeIn 0.5s;
+	        }
+	        .user, .bot {
+	            padding: 10px 15px;
+	            border-radius: 16px;
+	            position: relative;
+	            word-wrap: break-word;
+	            font-size: 14px;
+	            display: inline-block;
+	        }
+	        .user {
+	            background-color: #2980b9; /* Azul escuro */
+	            color: white;
+	            align-self: flex-end;
+	            border-bottom-right-radius: 0;
+	        }
+	        .bot {
+	            background-color: #bdc3c7; /* Cinza claro para o bot */
+	            color: #2c3e50; /* Cinza escuro para texto do bot */
+	            align-self: flex-start;
+	            border-bottom-left-radius: 0;
+	        }
+	        .avatar {
+	            width: 30px;
+	            height: 30px;
+	            border-radius: 50%;
+	            margin: 0 8px;
+	        }
+	        .timestamp {
+	            font-size: 10px;
+	            color: #555;
+	            margin-top: 2px;
+	        }
+	        #input-area {
+	            display: flex;
+	            border-top: 1px solid #ddd;
+	            background: #3498db; /* Azul bonito */
+	        }
+	        #input {
+	            flex: 1;
+	            padding: 12px;
+	            border: none;
+	            font-size: 16px;
+	            outline: none;
+	            color: #2c3e50;
+	        }
+	        #send {
+	            padding: 0 20px;
+	            background: #2c3e50; /* Cinza escuro */
+	            color: white;
+	            border: none;
+	            cursor: pointer;
+	            font-size: 16px;
+	            transition: background 0.3s;
+	        }
+	        #send:hover {
+	            background
+	
+}
+

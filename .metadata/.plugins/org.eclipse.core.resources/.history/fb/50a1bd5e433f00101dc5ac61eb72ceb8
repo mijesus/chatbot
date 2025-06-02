@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Chatbot OrioAI - Triagem Médica</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 0; }
+        .chat-container {
+            width: 400px; margin: 50px auto; background: white; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column; height: 500px; overflow: hidden;
+        }
+        .messages {
+            flex: 1; padding: 20px; overflow-y: auto;
+        }
+        .message {
+            margin-bottom: 10px; padding: 10px; border-radius: 10px; max-width: 80%;
+        }
+        .bot { background: #e0e0e0; align-self: flex-start; }
+        .user { background: #007bff; color: white; align-self: flex-end; }
+        .input-container {
+            display: flex; border-top: 1px solid #ddd; padding: 10px;
+        }
+        input {
+            flex: 1; padding: 10px; border: none; border-radius: 5px; margin-right: 10px; outline: none;
+        }
+        button {
+            padding: 10px 20px; border: none; background: #007bff; color: white; border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="messages" id="messages">
+        <!-- Mensagens aparecem aqui -->
+    </div>
+    <div class="input-container">
+        <input type="text" id="userInput" placeholder="Digite sua mensagem...">
+        <button onclick="sendMessage()">Enviar</button>
+    </div>
+</div>
+
+<script>
+    const messagesDiv = document.getElementById('messages');
+
+    function appendMessage(text, sender) {
+        const message = document.createElement('div');
+        message.classList.add('message', sender);
+        message.innerText = text;
+        messagesDiv.appendChild(message);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('userInput');
+        const text = input.value.trim();
+        if (text !== "") {
+            appendMessage(text, 'user');
+            fetch('chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'message=' + encodeURIComponent(text)
+            })
+            .then(response => response.text())
+            .then(data => {
+                appendMessage(data, 'bot');
+            });
+            input.value = '';
+        }
+    }
+
+    // Mensagem inicial automática
+    window.onload = function() {
+        appendMessage('Olá! Eu sou a OrioAI, vamos iniciar sua triagem. Qual seu nome?', 'bot');
+    };
+</script>
+
+</body>
+</html>

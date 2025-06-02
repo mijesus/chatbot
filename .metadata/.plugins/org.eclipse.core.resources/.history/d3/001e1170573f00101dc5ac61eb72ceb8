@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>ChatBot OrioAI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #e3f2fd;
+            display: flex;
+            justify-content: center;
+        }
+        #chat-container {
+            background: #ffffff;
+            width: 400px;
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            border: 3px solid #2196f3;
+        }
+        #chat {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background: #bbdefb;
+        }
+        .message {
+            display: flex;
+            align-items: flex-end;
+            max-width: 80%;
+            margin: 10px 0;
+            animation: fadeIn 0.5s;
+        }
+        .user, .bot {
+            padding: 10px 15px;
+            border-radius: 16px;
+            position: relative;
+            word-wrap: break-word;
+            font-size: 14px;
+            display: inline-block;
+        }
+        .user {
+            background-color: #1e88e5;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 0;
+        }
+        .bot {
+            background-color: #e3f2fd;
+            color: #0d47a1;
+            align-self: flex-start;
+            border-bottom-left-radius: 0;
+        }
+        .avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin: 0 8px;
+        }
+        .timestamp {
+            font-size: 10px;
+            color: #555;
+            margin-top: 2px;
+        }
+        #input-area {
+            display: flex;
+            border-top: 1px solid #ddd;
+            background: #2196f3;
+        }
+        #input {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            font-size: 16px;
+            outline: none;
+            color: #0d47a1;
+        }
+        #send {
+            padding: 0 20px;
+            background: #0d47a1;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        #send:hover {
+            background: #1565c0;
+        }
+        h2 {
+            text-align: center;
+            color: #0d47a1;
+            margin: 10px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="chat-container">
+    <h2>ChatBot OrioAI</h2>
+    <div id="chat"></div>
+    <div id="input-area">
+        <input type="text" id="input" placeholder="Digite sua mensagem..." autocomplete="off">
+        <button id="send">Enviar</button>
+    </div>
+</div>
+
+<script>
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("input");
+    const send = document.getElementById("send");
+
+    function getTimeNow() {
+        const now = new Date();
+        return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function appendMessage(sender, text) {
+        const msgContainer = document.createElement("div");
+        msgContainer.className = "message";
+
+        const avatar = document.createElement("img");
+        avatar.className = "avatar";
+
+        if (sender === "user") {
+            avatar.src = "https://cdn-icons-png.flaticon.com/512/1946/1946429.png"; // Ícone de usuário
+        } else {
+            avatar.src = "https://cdn-icons-png.flaticon.com/512/4712/4712109.png"; // Ícone de robô
+        }
+
+        const bubble = document.createElement("div");
+        bubble.className = sender;
+        bubble.innerText = text;
+
+        const timestamp = document.createElement("div");
+        timestamp.className = "timestamp";
+        timestamp.innerText = getTimeNow();
+
+        if (sender === "user") {
+            msgContainer.appendChild(bubble);
+            msgContainer.appendChild(avatar);
+        } else {
+            msgContainer.appendChild(avatar);
+            msgContainer.appendChild(bubble);
+        }
+        msgContainer.appendChild(timestamp);
+
+        chat.appendChild(msgContainer);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    send.addEventListener("click", () => {
+        const message = input.value.trim();
+        if (!message) return;
+
+        appendMessage("user", message);
+
+        fetch("/SistemaTriagemOrioAI/chat", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+            },
+            body: "message=" + encodeURIComponent(message)
+        })
+        .then(response => response.text())
+        .then(data => {
+            appendMessage("bot", data);
+            input.value = "";
+        })
+        .catch(error => {
+            appendMessage("bot", "❌ Erro na comunicação com o servidor.");
+        });
+    });
+
+    input.addEventListener("keyup", function(event) {
+        if (event.key === "Enter") {
+            send.click();
+        }
+    });
+</script>
+
+</body>
+</html>
+

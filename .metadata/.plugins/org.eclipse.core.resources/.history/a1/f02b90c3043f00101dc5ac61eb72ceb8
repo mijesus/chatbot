@@ -1,0 +1,258 @@
+package chatbotorioai;
+
+import javax.servlet.*;
+import javax.servlet.http.*;
+import java.io.*;
+import java.sql.*;
+import java.util.*;
+
+public class ChatServlet extends HttpServlet {
+    private static final long serialVersionUID = 1L;
+
+    // Estados
+    private Map<String, String> sessionData = new HashMap<>();
+    private int etapa = -1; // -1: menu inicial, 0: nome, 1: cpf, etc.
+    private String modo = ""; // agendar, consultar, desmarcar
+
+    // Datas e horários disponíveis
+    private static final List<String> DATAS = Arrays.asList("10/06/2025", "11/06/2025", "12/06/2025");
+    private static final List<String> HORARIOS = Arrays.asList("09:00", "10:00", "11:00");
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+        throws ServletException, IOException {
+
+        String userMessage = request.getParameter("message").trim().toLowerCase();
+        response.setContentType("text/plain");
+        PrintWriter out = response.getWriter();
+
+        if (userMessage.equalsIgnoreCase("sair")) {
+            resetarConversa();
+            out.println("Conversa encerrada. Até logo!");
+            return;
+        }
+
+        if (etapa == -1) { // MENU INICIAL
+            returnMenuInicial(out);
+            etapa = -2; // Aguardando escolha
+            return;
+        }
+
+        if (etapa == -2) {
+            if (userMessage.equals("1")) {
+                modo = "agendar";
+                etapa = 0;
+                out.println("Vamos iniciar o agendamento.\nQual seu nome?");
+            } else if (userMessage.equals("2")) {
+                modo = "consultar";
+                out.println("Informe seu CPF para consultar seu agendamento:");
+                etapa = 100;
+            } else if (userMessage.equals("3")) {
+                modo = "desmarcar";
+                out.println("Informe seu CPF para desmarcar seu agendamento:");
+                etapa = 200;
+            } else {
+                out.println("Opção inválida. Digite:\n1) Agendar\n2) Consultar\n3) Desmarcar");
+            }
+            return;
+        }
+
+        String botResponse = processarMensagem(userMessage);
+        out.println(botResponse);
+    }
+
+    private String processarMensagem(String userMessage) {
+        switch (modo) {
+            case "agendar":
+                return fluxoAgendamento(userMessage);
+            case "consultar":
+                return fluxoConsulta(userMessage);
+            case "desmarcar":
+                return fluxoDesmarcar(userMessage);
+            default:
+                resetarConversa();
+                return "Desculpe, não entendi. Vamos voltar ao menu.";
+        }
+    }
+
+    private String fluxoAgendamento(String userMessage) {
+        switch (etapa) {
+            case 0:
+                sessionData.put("nome", userMessage);
+                etapa++;
+                return "Qual seu CPF?";
+            case 1:
+                sessionData.put("cpf", userMessage);
+                etapa++;
+                return "Qual seu telefone?";
+            case 2:
+                sessionData.put("telefone", userMessage);
+                etapa++;
+                return "Agora me informe seu e-mail.";
+            case 3:
+                sessionData.put("email", userMessage);
+                etapa++;
+                return "Qual sua data de nascimento? (YYYY-MM-DD)";
+            case 4:
+                sessionData.put("nascimento", userMessage);
+                etapa++;
+                return "Agora me descreva seus sintomas.";
+            case 5:
+                sessionData.put("sintomas", userMessage);
+                String prioridade = classificarPrioridade(userMessage);
+                salvarPaciente(sessionData.get("nome"), sessionData.get("cpf"), sessionData.get("telefone"), sessionData.get("email"), sessionData.get("nascimento"), sessionData.get("sintomas"));
+                etapa++;
+                return "Triagem concluída! Sua prioridade é " + prioridade.toUpperCase() + ".\nEscolha uma data:\n" + formatarOpcoes(DATAS);
+            case 6:
+                int dataEscolhida = Integer.parseInt(userMessage) - 1;
+                if (dataEscolhida >= 0 && dataEscolhida < DATAS.size()) {
+                    sessionData.put("data", DATAS.get(dataEscolhida));
+                    etapa++;
+                    return "Escolha um horário:\n" + formatarOpcoes(HORARIOS);
+                } else {
+                    return "Opção inválida. Escolha uma data:\n" + formatarOpcoes(DATAS);
+                }
+            case 7:
+                int horaEscolhida = Integer.parseInt(userMessage) - 1;
+                if (horaEscolhida >= 0 && horaEscolhida < HORARIOS.size()) {
+                    sessionData.put("hora", HORARIOS.get(horaEscolhida));
+                    salvarAgendamento(sessionData.get("cpf"), sessionData.get("data"), sessionData.get("hora"));
+                    String dataConfirmada = sessionData.get("data");
+                    String horaConfirmada = sessionData.get("hora");
+                    resetarConversa();
+                    return "Consulta marcada para " + dataConfirmada + " às " + horaConfirmada + ". ✔️\nDeseja realizar outra operação? (sim / sair)";
+                } else {
+                    return "Opção inválida. Escolha um horário:\n" + formatarOpcoes(HORARIOS);
+                }
+            default:
+                resetarConversa();
+                return "Algo deu errado no agendamento. Vamos voltar ao menu.";
+        }
+    }
+
+    private String fluxoConsulta(String userMessage) {
+        try (Connection conn = Database.connect();
+             PreparedStatement selectPaciente = conn.prepareStatement("SELECT id FROM paciente WHERE cpf = ?")) {
+            selectPaciente.setString(1, userMessage);
+            ResultSet rs = selectPaciente.executeQuery();
+            if (rs.next()) {
+                int pacienteId = rs.getInt("id");
+                try (PreparedStatement selectAgendamento = conn.prepareStatement(
+                        "SELECT data_consulta, hora_consulta FROM agendamento WHERE paciente_id = ?")) {
+                    selectAgendamento.setInt(1, pacienteId);
+                    ResultSet agendamentoRS = selectAgendamento.executeQuery();
+                    if (agendamentoRS.next()) {
+                        String data = agendamentoRS.getString("data_consulta");
+                        String hora = agendamentoRS.getString("hora_consulta");
+                        resetarConversa();
+                        return "Seu agendamento é para " + data + " às " + hora + ".\nDeseja realizar outra operação? (sim / sair)";
+                    } else {
+                        resetarConversa();
+                        return "Nenhum agendamento encontrado para este CPF.\nDeseja realizar outra operação? (sim / sair)";
+                    }
+                }
+            } else {
+                resetarConversa();
+                return "CPF não encontrado.\nDeseja realizar outra operação? (sim / sair)";
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            resetarConversa();
+            return "Erro na consulta. Vamos voltar ao menu.";
+        }
+    }
+
+    private String fluxoDesmarcar(String userMessage) {
+        try (Connection conn = Database.connect();
+             PreparedStatement selectPaciente = conn.prepareStatement("SELECT id FROM paciente WHERE cpf = ?")) {
+            selectPaciente.setString(1, userMessage);
+            ResultSet rs = selectPaciente.executeQuery();
+            if (rs.next()) {
+                int pacienteId = rs.getInt("id");
+                try (PreparedStatement deleteAgendamento = conn.prepareStatement(
+                        "DELETE FROM agendamento WHERE paciente_id = ?")) {
+                    deleteAgendamento.setInt(1, pacienteId);
+                    deleteAgendamento.executeUpdate();
+                }
+                resetarConversa();
+                return "Consulta desmarcada com sucesso.\nDeseja realizar outra operação? (sim / sair)";
+            } else {
+                resetarConversa();
+                return "CPF não encontrado.\nDeseja realizar outra operação? (sim / sair)";
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            resetarConversa();
+            return "Erro ao desmarcar. Vamos voltar ao menu.";
+        }
+    }
+
+    private void salvarPaciente(String nome, String cpf, String telefone, String email, String nascimento, String sintomas) {
+        try (Connection conn = Database.connect();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "INSERT INTO paciente (nome, cpf, telefone, email, nascimento) VALUES (?, ?, ?, ?, ?)")) {
+            stmt.setString(1, nome);
+            stmt.setString(2, cpf);
+            stmt.setString(3, telefone);
+            stmt.setString(4, email);
+            stmt.setString(5, nascimento);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void salvarAgendamento(String cpf, String data, String hora) {
+        try (Connection conn = Database.connect();
+             PreparedStatement selectPaciente = conn.prepareStatement("SELECT id FROM paciente WHERE cpf = ?")) {
+            selectPaciente.setString(1, cpf);
+            ResultSet rs = selectPaciente.executeQuery();
+            if (rs.next()) {
+                int pacienteId = rs.getInt("id");
+                try (PreparedStatement insertAgendamento = conn.prepareStatement(
+                        "INSERT INTO agendamento (paciente_id, data_consulta, hora_consulta) VALUES (?, ?, ?)")) {
+                    insertAgendamento.setInt(1, pacienteId);
+                    insertAgendamento.setString(2, data);
+                    insertAgendamento.setString(3, hora);
+                    insertAgendamento.executeUpdate();
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String classificarPrioridade(String texto) {
+        texto = texto.toLowerCase();
+        if (texto.contains("urgente") || texto.contains("dor no peito") || texto.contains("falta de ar") || texto.contains("desmaio")) {
+            return "Alta";
+        } else if (texto.contains("febre") || texto.contains("tosse") || texto.contains("dor de cabeça")) {
+            return "Média";
+        } else {
+            return "Baixa";
+        }
+    }
+
+    private String formatarOpcoes(List<String> opcoes) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < opcoes.size(); i++) {
+            sb.append(i + 1).append(") ").append(opcoes.get(i)).append("\n");
+        }
+        return sb.toString();
+    }
+
+    private void resetarConversa() {
+        sessionData.clear();
+        etapa = -1;
+        modo = "";
+    }
+
+    private void returnMenuInicial(PrintWriter out) {
+        out.println("Olá! Bem-vindo(a) à OrioAI. O que deseja fazer?\n"
+                + "1) Agendar consulta\n"
+                + "2) Consultar agendamento\n"
+                + "3) Desmarcar consulta\n"
+                + "Digite o número da opção:");
+    }
+}
+

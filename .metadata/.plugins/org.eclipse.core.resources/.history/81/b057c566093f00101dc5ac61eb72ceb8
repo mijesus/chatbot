@@ -1,0 +1,59 @@
+package chatbotorioai;
+
+import javax.servlet.*;
+import javax.servlet.http.*;
+import java.io.*;
+import java.sql.*;
+
+public class ConsultarServlet extends HttpServlet {
+    private static final long serialVersionUID = 1L;
+
+    // Inicializa o banco de dados com o caminho correto
+    @Override
+    public void init() throws ServletException {
+        super.init();
+        Database.initialize(getServletContext());
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        String cpf = request.getParameter("cpf");
+
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+        out.println("<html><body>");
+        out.println("<h2>Consultas Encontradas</h2>");
+
+        try (Connection conn = Database.connect();
+             PreparedStatement stmt = conn.prepareStatement(
+                "SELECT p.nome, p.telefone, p.email, p.nascimento, a.data_consulta, a.hora_consulta " +
+                "FROM paciente p LEFT JOIN agendamento a ON p.id = a.paciente_id WHERE p.cpf = ?")) {
+
+            stmt.setString(1, cpf);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                out.println("<p><strong>Nome:</strong> " + rs.getString("nome") + "</p>");
+                out.println("<p><strong>Telefone:</strong> " + rs.getString("telefone") + "</p>");
+                out.println("<p><strong>Email:</strong> " + rs.getString("email") + "</p>");
+                out.println("<p><strong>Nascimento:</strong> " + rs.getString("nascimento") + "</p>");
+                String dataConsulta = rs.getString("data_consulta");
+                String horaConsulta = rs.getString("hora_consulta");
+                if (dataConsulta != null && horaConsulta != null) {
+                    out.println("<p><strong>Data da Consulta:</strong> " + dataConsulta + "</p>");
+                    out.println("<p><strong>Hora da Consulta:</strong> " + horaConsulta + "</p>");
+                } else {
+                    out.println("<p><strong>Consulta:</strong> Nenhum agendamento encontrado.</p>");
+                }
+            } else {
+                out.println("<p><strong>CPF não encontrado.</strong></p>");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            out.println("<p>Erro ao consultar dados.</p>");
+        }
+
+        out.println("<br><a href='consultar.html'>Voltar</a>");
+        out.println("</body></html>");
+    }
+}

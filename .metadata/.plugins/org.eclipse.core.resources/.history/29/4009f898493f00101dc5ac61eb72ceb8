@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Consultar Agendamento</title>
+</head>
+<body>
+    <h2>Consultar Agendamento por CPF</h2>
+    <form action="consultar" method="post">
+        <label>CPF:</label>
+        <input type="text" name="cpf" required><br><br>
+        <input type="submit" value="Consultar">
+    </form>
+
+    <br>
+    <a href="index.html">Voltar para Triagem</a>
+</body>
+</html>
