@@ -4,7 +4,11 @@ INDEX VERSION 1.4+C:\Users\mijes\OneDrive\Área de Trabalho\Projeto ChatBot\.met
 515321326.index
 1448784356.index
 515321326.index
+1747219517.index
+987817051.index
 3868763062.index
+3717919042.index
 1442925728.index
 3085396783.index
 3012601530.index
+157643025.index

@@ -1,0 +1,49 @@
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee" version="3.1">
+
+    <!-- Servlet da Triagem (Formulário) -->
+    <servlet>
+        <servlet-name>TriagemServlet</servlet-name>
+        <servlet-class>chatbotorioai.TriagemServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>TriagemServlet</servlet-name>
+        <url-pattern>/triagem</url-pattern>
+    </servlet-mapping>
+
+    <!-- Servlet de Consulta por CPF -->
+    <servlet>
+        <servlet-name>ConsultarServlet</servlet-name>
+        <servlet-class>chatbotorioai.ConsultarServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>ConsultarServlet</servlet-name>
+        <url-pattern>/consultar</url-pattern>
+    </servlet-mapping>
+
+    <!-- Servlet de Exclusão -->
+    <servlet>
+        <servlet-name>ExcluirServlet</servlet-name>
+        <servlet-class>chatbotorioai.ExcluirServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>ExcluirServlet</servlet-name>
+        <url-pattern>/excluir</url-pattern>
+    </servlet-mapping>
+
+    <!-- Servlet do Chatbot -->
+    <servlet>
+        <servlet-name>ChatServlet</servlet-name>
+        <servlet-class>chatbotorioai.ChatServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>ChatServlet</servlet-name>
+        <url-pattern>/chat</url-pattern>
+    </servlet-mapping>
+
+    <!-- Página inicial -->
+    <welcome-file-list>
+        <welcome-file>index.html</welcome-file> <!-- Sem 'static/' -->
+    </welcome-file-list>
+
+</web-app>
+

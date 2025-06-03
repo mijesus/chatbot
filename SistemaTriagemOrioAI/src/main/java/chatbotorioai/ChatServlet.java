@@ -1,7 +1,6 @@
 package chatbotorioai;
 
 import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -10,7 +9,6 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-@WebServlet("/chat")
 public class ChatServlet extends HttpServlet {
 
     private Map<String, String> sessionData = new HashMap<>();
@@ -58,7 +56,7 @@ public class ChatServlet extends HttpServlet {
             return;
         }
 
-        if (etapa == -1) {
+        if (etapa == -1 || userMessage.equals("")) {
             returnMenuInicial(out);
             etapa = -2;
             return;
@@ -271,7 +269,7 @@ public class ChatServlet extends HttpServlet {
                 }
             }
 
-            String dataBR = sessionData.get("data"); // dd/MM/yyyy
+            String dataBR = sessionData.get("data");
             java.sql.Date dataSQL = converterDataBRParaSQL(dataBR);
 
             try (PreparedStatement agendamentoStmt = conn.prepareStatement(
@@ -282,7 +280,8 @@ public class ChatServlet extends HttpServlet {
                 agendamentoStmt.executeUpdate();
             }
 
-            conn.commit();
+            conn.commit(); // Corrigido!
+
         } catch (SQLException | ParseException e) {
             e.printStackTrace();
         }
@@ -294,7 +293,7 @@ public class ChatServlet extends HttpServlet {
             stmt.setString(1, cpf);
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                return rs.getInt("id"); // Paciente já existe
+                return rs.getInt("id");
             }
         }
 
